@@ -1,12 +1,12 @@
 import ahs from './asabaHeirs'
 import { Heirs } from './heir'
 import { unknown, nothing } from './quota'
-import { Result, sumResults } from './result'
+import { AddShareStep, Result, ResultWithExplanation, sumResults } from './result'
 import { exists, count, distribute } from './utils'
 import Fraction from 'fraction.js'
 
 
-export function calculateTasib(heirs: Heirs, fardResult: Result[]): Result[] {
+export function calculateTasib(heirs: Heirs, fardResult: ResultWithExplanation): ResultWithExplanation {
   // filter out asaba that exist and sort them by their tasibRank
   const asabas = ahs
     .filter(ah => exists(heirs, ah.name))
@@ -14,7 +14,7 @@ export function calculateTasib(heirs: Heirs, fardResult: Result[]): Result[] {
       // If an heir is given the prescribed share, he/she drops from Ta’seeb
       // father is an exception to this rule 
       return (
-        !fardResult.find(fh => fh.name === ah.name) ||
+        !fardResult.shares.find(fh => fh.name === ah.name) ||
         ah.name === 'father'
       )
     })
@@ -34,15 +34,27 @@ export function calculateTasib(heirs: Heirs, fardResult: Result[]): Result[] {
   })
 
   const whole = new Fraction(1)
-  let remaining = whole.sub(sumResults(fardResult))
+  let remaining = whole.sub(sumResults(fardResult.shares))
   if (remaining.compare(0) < 0) {
     remaining = nothing
   }
 
   switch(results.length) {
-    case 0: return results
-    case 1: return distribute(results, remaining)
-    case 2: return jointTasib(results, remaining)
+    case 0: return fardResult
+    case 1: {
+      const newShares = distribute(results, remaining)
+      return { 
+        shares: [...fardResult.shares, ...newShares],
+        steps: [...fardResult.steps, ...newShares.map(s => ({ addedShare: s, stepType: 'add_share' }) as AddShareStep)]
+      }
+    }
+    case 2: {
+      const newShares =jointTasib(results, remaining)
+      return {
+        shares: [...fardResult.shares, ...newShares],
+        steps: [...fardResult.steps, ...newShares.map(s => ({ addedShare: s, stepType: 'add_share' }) as AddShareStep)]
+      }
+    }
     default: throw Error('qualified asaba types cannot be greater than two')
   }
 }

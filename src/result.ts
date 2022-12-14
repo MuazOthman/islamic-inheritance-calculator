@@ -1,7 +1,27 @@
 import Fraction from 'fraction.js'
 import { Heir } from './heir'
 
+export type AddShareStep = {
+  addedShare: Result,
+  stepType: 'add_share'
+}
+
+export type RedistributeStep = {
+  stepType: 'redistribute'
+  sharesAfterRedistribution: Result[]
+}
+
+export type SpecialCaseStep = {
+  stepType: 'special_case'
+  specialCase: 'umariyyah'|'mushtaraka'|'awl'|'radd'
+  sharesAfterAdjustment: Result[]
+}
+
+export type Step = AddShareStep | RedistributeStep | SpecialCaseStep
+
 export type Result = { name: Heir, count: number, type: 'tasib'|'fard'|'special_case', share: Fraction }
+
+export type ResultWithExplanation = { shares: Result[], steps: Step[] }
 
 export const isFard = (result: Result) => result.type === 'fard' 
 export const isTasib = (result: Result) => result.type === 'tasib' 
@@ -40,6 +60,24 @@ export function printResults(results: Result[]) {
 
   console.log(results.map(fractionToString))
 }
+
+export function printResultsWithExplanation(result: ResultWithExplanation){
+  console.log('Shares')
+  printResults(result.shares)
+  console.log('Steps')
+  result.steps.forEach(s => {
+    if(s.stepType === 'add_share') {
+      console.log('Add share')
+      printResults([s.addedShare])
+    } else if(s.stepType === 'redistribute') {
+      console.log('Redistribute')
+      printResults(s.sharesAfterRedistribution)
+    } else if(s.stepType === 'special_case') {
+      console.log('Special case')
+      printResults(s.sharesAfterAdjustment)
+    }
+  })
+};
 
 export const sumResults = (results: Result[]) => {
   let sum = new Fraction(0)

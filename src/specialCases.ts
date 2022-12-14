@@ -5,83 +5,96 @@ import {
   Result,
   findFromResult,
   sumResults,
-  updateResults
+  updateResults,
+  ResultWithExplanation,
+  Step,
+  SpecialCaseStep
 } from './result'
 import { sixth, quarter, third, half, nothing } from './quota'
 import { distribute } from './utils'
 
 
 export function calculateSpecialCases(
-  fardResult: Result[],
-  asabaResult: Result[]
-): Result[] {
-  const results = [...fardResult, ...asabaResult]
+  results: ResultWithExplanation
+): ResultWithExplanation {
   return flow([umariyyahCase, mushtarakaCase, awlCase, raddCase])(results)
 }
 
-function awlCase(result: Result[]): Result[] {
+function awlCase(result: ResultWithExplanation): ResultWithExplanation {
   const whole = new Fraction(1)
-  const remaining = whole.sub(sumResults(result))
-  const sum = sumResults(result)
+  const sum = sumResults(result.shares)
+  const remaining = whole.sub(sum)
   if (remaining.compare(0) < 0) {
-    return result.map(r => ({
+    const adjustedShares = result.shares.map(r => ({
       ...r,
       share: r.share.div(sum)
     }))
+    return {
+      shares: adjustedShares,
+      steps: [...result.steps, { stepType: 'special_case', specialCase: 'awl', sharesAfterAdjustment: adjustedShares }]
+    } as ResultWithExplanation
   }
 
   return result
 }
 
-function raddCase(result: Result[]): Result[] {
+function raddCase(result: ResultWithExplanation):ResultWithExplanation {
   const whole = new Fraction(1)
-  const remaining = whole.sub(sumResults(result))
+  const remaining = whole.sub(sumResults(result.shares))
 
   if (remaining.compare(0) > 0) {
     const ratios = toRatio(
-      result.map(r => {
-        if ((r.name === 'wife' || r.name === 'husband') && result.length > 1) {
+      result.shares.map(r => {
+        if ((r.name === 'wife' || r.name === 'husband') && result.shares.length > 1) {
           return new Fraction(0)
         }
         return r.share
       })
     )
 
-    return zip(result, ratios).map(([r, ratio]) => {
+    const adjustedShares = zip(result.shares, ratios).map(([r, ratio]) => {
       if (!r || !ratio) {
-        throw Error('result and ratios should be equal in lenght')
+        throw Error('result and ratios should be equal in length')
       }
 
       return { ...r, share: r.share.add(remaining.mul(ratio)) }
     })
+    return {
+      shares: adjustedShares,
+      steps: [...result.steps, { stepType: 'special_case', specialCase: 'radd', sharesAfterAdjustment: adjustedShares }]
+    } as ResultWithExplanation
   }
 
   return result
 }
 
-function mushtarakaCase(result: Result[]): Result[] {
-  const fullBrother = findFromResult(result, 'full_brother')
-  const maternalSibling = findFromResult(result, 'maternal_sibling')
+function mushtarakaCase(result:ResultWithExplanation): ResultWithExplanation {
+  const fullBrother = findFromResult(result.shares, 'full_brother')
+  const maternalSibling = findFromResult(result.shares, 'maternal_sibling')
 
   if (fullBrother && maternalSibling) {
     if (fullBrother.share.compare(nothing) === 0) {
-      return updateResults(
-        result,
+      const adjustedShares = updateResults(
+        result.shares,
         distribute([fullBrother, maternalSibling], maternalSibling.share)
       )
+      return {
+        shares: adjustedShares,
+        steps: [...result.steps, { stepType: 'special_case', specialCase: 'mushtaraka', sharesAfterAdjustment: adjustedShares }]
+      } as ResultWithExplanation
     }
   }
 
   return result
 }
 
-function umariyyahCase(result: Result[]): Result[] {
-  const father = findFromResult(result, 'father')
-  const mother = findFromResult(result, 'mother')
-  const wife = findFromResult(result, 'wife')
-  const husband = findFromResult(result, 'husband')
+function umariyyahCase(result: ResultWithExplanation): ResultWithExplanation {
+  const father = findFromResult(result.shares, 'father')
+  const mother = findFromResult(result.shares, 'mother')
+  const wife = findFromResult(result.shares, 'wife')
+  const husband = findFromResult(result.shares, 'husband')
 
-  const isUmariyyah = result.every(r => {
+  const isUmariyyah = result.shares.every(r => {
     const umariyyahParticipants: Heir[] = ['father', 'mother', 'husband', 'wife']
     return umariyyahParticipants.includes(r.name)
   })
@@ -89,23 +102,27 @@ function umariyyahCase(result: Result[]): Result[] {
   if (!isUmariyyah) return result
 
   const type = 'special_case'
+  let newResults: Result[] | undefined = undefined
   if (father && mother && wife) {
-    return [
+    newResults = [
       { ...wife, share: quarter },
       { ...father, type, share: half },
       { ...mother, type, share: quarter }
     ]
-  }
-
-  if (father && mother && husband) {
-    return [
+  } else if (father && mother && husband) {
+    newResults = [
       { ...husband, share: half },
       { ...father, type, share: third },
       { ...mother, type, share: sixth }
     ]
   }
 
-  return result
+  if(!newResults) return result
+
+  return {
+    shares: newResults,
+    steps: [...result.steps, { stepType: 'special_case', sharesAfterAdjustment: newResults,  specialCase: 'umariyyah'} as SpecialCaseStep]
+  } as ResultWithExplanation
 }
 
 const toRatio = (fractions: Fraction[]) => {

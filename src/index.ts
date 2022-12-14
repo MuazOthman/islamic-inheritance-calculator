@@ -10,8 +10,8 @@ const calculate = (heirs: Partial<Heirs>) => {
 
   const allHeirs: Heirs = { ...defaultHeirs, ...heirs }
   const fardResult = calculateFard(allHeirs)
-  const tasibResult = calculateTasib(allHeirs, fardResult)
-  const results = calculateSpecialCases(fardResult, tasibResult)
+  const resultAfterTasib = calculateTasib(allHeirs, fardResult)
+  const results = calculateSpecialCases(resultAfterTasib)
   return results
 }
 

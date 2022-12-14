@@ -4,12 +4,13 @@ import {
   Result,
   findFromResult,
   updateResults,
+  ResultWithExplanation,
 } from './result'
 import { exists, count, distribute, isZero } from './utils'
 import { sixth } from './quota'
 
 
-export function calculateFard(heirs: Heirs): Result[] {
+export function calculateFard(heirs: Heirs): ResultWithExplanation {
   const fardHiers = fhs.filter(fh => exists(heirs, fh.name))
 
   const results = fardHiers
@@ -24,18 +25,27 @@ export function calculateFard(heirs: Heirs): Result[] {
     })
     .filter(r => !isZero(r.share))
 
-  return shareSixthBetweenGrandmothers(results)
-}
-
-function shareSixthBetweenGrandmothers(results: Result[]): Result[] {
-  const mGrandMother = findFromResult(results, 'maternal_grand_mother')
-  const pGrandMother = findFromResult(results, 'paternal_grand_mother')
-  if(mGrandMother && pGrandMother) {
-    return updateResults(
-      results,
-      distribute([mGrandMother, pGrandMother], sixth)
-    )
+  const resultWithExplanation: ResultWithExplanation = {
+    shares: results,
+    steps: results.filter(r=>r.share.compare(0)>0).map(r => ({ addedShare: {...r}, stepType: 'add_share' }))
   }
 
-  return results
+  return shareSixthBetweenGrandmothers(resultWithExplanation)
+}
+
+function shareSixthBetweenGrandmothers(resultWithExplanation: ResultWithExplanation): ResultWithExplanation {
+  const mGrandMother = findFromResult(resultWithExplanation.shares, 'maternal_grand_mother')
+  const pGrandMother = findFromResult(resultWithExplanation.shares, 'paternal_grand_mother')
+  if(mGrandMother && pGrandMother) {
+    const redistributed = updateResults(
+      resultWithExplanation.shares,
+      distribute([mGrandMother, pGrandMother], sixth)
+    )
+    return {
+      shares: redistributed,
+      steps: [...resultWithExplanation.steps, { stepType: 'redistribute', sharesAfterRedistribution: [...redistributed] }]
+    }
+  }
+
+  return resultWithExplanation
 }
